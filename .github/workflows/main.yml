@@ -90,7 +90,7 @@ jobs:
           echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo.env
 
       - name: Upload defectdojo.env file
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: defectdojo-env
           path: defectdojo.env
