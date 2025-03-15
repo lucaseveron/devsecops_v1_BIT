@@ -32,4 +32,8 @@ jobs:
         with:
           output: codeql-results.sarif  # Guardar en el directorio raíz con este nombre
 
-
+      - name: Upload CodeQL results as an artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: codeql-results
+          path: codeql-results.sarif
