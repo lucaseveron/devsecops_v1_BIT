@@ -30,7 +30,6 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          format: sarif    # Exportar en formato SARIF
           output: codeql-results.sarif  # Guardar en el directorio raíz con este nombre
 
       - name: Upload SARIF report to GitHub Security Tab
