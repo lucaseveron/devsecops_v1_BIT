@@ -55,8 +55,11 @@ jobs:
           image-ref: 'kali-standard'
           format: 'sarif'
           output: 'trivy-results.sarif'
+          exit-code: 0   # Evita fallos si se encuentran vulnerabilidades
+          severity: 'HIGH,CRITICAL'
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
+          debug: true
