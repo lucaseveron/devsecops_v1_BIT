@@ -39,45 +39,6 @@ jobs:
       - name: Set engagement dates
         run: |
           TODAY=$(date +%Y-%m-%d)
-          ENDDAY=$(date -d "+${DEFECTDOJO_ENGAGEMENT_PERIOD} days" +%Y-%m-%d)
-          echo "TODAY=${TODAY}" >> $GITHUB_ENV
-          echo "ENDDAY=${ENDDAY}" >> $GITHUB_ENV
-
-      - name: Create engagement in DefectDojo
-        run: |
-          ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
-            --header "Authorization: Token e3c422ed03c8c6566dbdba5d6f93c66bb779396d" \
-            --header 'Content-Type: application/json' \
-            --data-raw "{
-              \"tags\": [\"GitHub Actions\"],
-              \"name\": \"Trivy_#${GITHUB_RUN_ID}\",
-              \"description\": \"${GITHUB_EVENT_HEAD_COMMIT_MESSAGE}\",
-              \"version\": \"${GITHUB_REF}\",
-              \"first_contacted\": \"${TODAY}\",
-              \"target_start\": \"${TODAY}\",
-              \"target_end\": \"${ENDDAY}\",
-              \"reason\": \"string\",
-              \"tracker\": \"${GITHUB_REPOSITORY_URL}/-/issues\",
-              \"threat_model\": \"${DEFECTDOJO_ENGAGEMENT_THREAT_MODEL}\",
-              \"api_test\": \"${DEFECTDOJO_ENGAGEMENT_API_TEST}\",
-              \"pen_test\": \"${DEFECTDOJO_ENGAGEMENT_PEN_TEST}\",
-              \"check_list\": \"${DEFECTDOJO_ENGAGEMENT_CHECK_LIST}\",
-              \"status\": \"${DEFECTDOJO_ENGAGEMENT_STATUS}\",
-              \"engagement_type\": \"CI/CD\",
-              \"build_id\": \"Trivy_${GITHUB_RUN_ID}\",
-              \"commit_hash\": \"${GITHUB_SHA}\",
-              \"branch_tag\": \"${GITHUB_REF}\",
-              \"deduplication_on_engagement\": \"${DEFECTDOJO_ENGAGEMENT_DEDUPLICATION_ON_ENGAGEMENT}\",
-              \"product\": \"${DEFECTDOJO_PRODUCTID}\",
-              \"source_code_management_uri\": \"${GITHUB_REPOSITORY_URL}\",
-              \"build_server\": ${DEFECTDOJO_ENGAGEMENT_BUILD_SERVER},
-              \"source_code_management_server\": ${DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER},
-              \"orchestration_engine\": ${DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE}
-            }" | jq -r '.id')
-          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo.env
-
-      - name: Upload defectdojo.env file
-        uses: actions/upload-artifact@v4
-        with:
-          name: defectdojo-env
-          path: defectdojo.env
+          ENDDAY=$(date -d "+28 days" +%Y-%m-%d)
+          echo "TODAY=${TODAY}"
+          echo "ENDDAY=${ENDDAY}"
