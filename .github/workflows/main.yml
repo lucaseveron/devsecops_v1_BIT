@@ -51,7 +51,7 @@ jobs:
           --data-raw '{
             "tags": ["GitHub Actions"],
             "name": "Trivy_#${{ github.run_id }}",
-            "description": "${{ github.event.head_commit.message }}", 
+            "description": "Trivy Scan", 
             "version": "${{ github.ref }}",
             "first_contacted": "2025-03-16",
             "target_start": "2025-03-16",
