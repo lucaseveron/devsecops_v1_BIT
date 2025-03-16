@@ -9,8 +9,8 @@ on:
     - cron: '0 3 * * 1'  # Ejecutar cada lunes a las 3 AM UTC
 
 jobs:
-  dojo:
-    name: Defect Dojo
+  trivy_create_engagement:
+    name: Create engagement in DefectDojo -Trivy
     runs-on: ubuntu-latest
     env:
       DEFECTDOJO_URL: "https://8519-2800-810-5e4-99ae-173e-f75c-5fd7-5460.ngrok-free.app"
@@ -81,9 +81,10 @@ jobs:
           name: defectdojo-env
           path: defectdojo.env
   
-  defectdojo_publish_trivy:
-    name: Publish Trivy Scan to DefectDojo
+  trivy_import_results:
+    name: Publish Trivy Scan in DefectDojo
     runs-on: ubuntu-latest
+    depends-on: trivy_create_engagement
     env:
       DEFECTDOJO_URL: "https://8519-2800-810-5e4-99ae-173e-f75c-5fd7-5460.ngrok-free.app"
       DEFECTDOJO_TOKEN: "df9ab36562a1584ac253353c42313d526dd72a1f"
