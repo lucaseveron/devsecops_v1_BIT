@@ -36,41 +36,44 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl jq coreutils
 
-      - name: Create engagement in DefectDojo
+      - name: Set engagement dates
         run: |
           TODAY=$(date +%Y-%m-%d)
           ENDDAY=$(date -d "+28 days" +%Y-%m-%d)
           echo "TODAY=${TODAY}"
           echo "ENDDAY=${ENDDAY}"
+
+      - name: Create engagement in DefectDojo
+        run: |
           ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
           --header "Authorization: Token df9ab36562a1584ac253353c42313d526dd72a1f" \
           --header "Content-Type: application/json" \
           --data-raw '{
-            \"tags\": [\"GitHub Actions\"],
-            \"name\": \"Trivy_#${{ github.run_id }}\",
-            \"description\": \"${{ github.event.head_commit.message }}\", 
-            \"version\": \"${{ github.ref }}\",
-            \"first_contacted\": \"${TODAY}\",
-            \"target_start\": \"${TODAY}\",
-            \"target_end\": \"${ENDDAY}\",
-            \"reason\": \"string\",
-            \"tracker\": \"https://github.com/${{ github.repository }}\",
-            \"test_strategy\": null,
-            \"threat_model\": true,
-            \"api_test\": true,
-            \"pen_test\": true,
-            \"check_list\": true,
-            \"status\": \"Not Started\",
-            \"engagement_type\": \"CI/CD\",
-            \"build_id\": \"string\",
-            \"commit_hash\": \"string\",
-            \"branch_tag": \"${{ github.ref }}\",
-            \"source_code_management_uri\": \"https://github.com/${{ github.repository }}\",
-            \"deduplication_on_engagement": true,
-            \"product\": 1,
-            \"build_server\": null,
-            \"source_code_management_server\": null,
-            \"orchestration_engine\": null
+            "tags": ["GitHub Actions"],
+            "name": "Trivy_#${{ github.run_id }}",
+            "description": "${{ github.event.head_commit.message }}", 
+            "version": "${{ github.ref }}",
+            "first_contacted": "2025-03-16",
+            "target_start": "2025-03-16",
+            "target_end": "2025-03-16",
+            "reason": "string",
+            "tracker": "https://github.com/${{ github.repository }}",
+            "test_strategy": null,
+            "threat_model": true,
+            "api_test": true,
+            "pen_test": true,
+            "check_list": true,
+            "status": "Not Started",
+            "engagement_type": "CI/CD",
+            "build_id": "string",
+            "commit_hash": "string",
+            "branch_tag": "string",
+            "source_code_management_uri": "https://github.com/${{ github.repository }}",
+            "deduplication_on_engagement": true,
+            "product": 1,
+            "build_server": null,
+            "source_code_management_server": null,
+            "orchestration_engine": null
           }' | jq -r '.id')
           echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo.env
 
