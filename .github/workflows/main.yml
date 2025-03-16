@@ -5,12 +5,47 @@ on:
     branches: [ "main", "develop" ]
   pull_request:
     branches: [ "main", "develop" ]
-  schedule:
-    - cron: '0 3 * * 1'  # Ejecutar cada lunes a las 3 AM UTC
+#  schedule:
+#    - cron: '0 3 * * 1'  # Ejecutar cada lunes a las 3 AM UTC
 
 jobs:
+  trivy_scan:
+      name: Trivy Scan
+      runs-on: ubuntu-20.04
+      permissions:
+        security-events: write  # Add this line to ensure proper permissions
+
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+
+        - name: Build an image from Dockerfile
+          run: |
+            docker build -t kali-standard .
+
+        - name: Run Trivy vulnerability scanner
+          uses: aquasecurity/trivy-action@0.28.0
+          with:
+            image-ref: 'kali-standard'
+            format: 'sarif'
+            output: 'trivy-results.sarif'
+            exit-code: 0   # Evita fallos si se encuentran vulnerabilidades
+            severity: 'HIGH,CRITICAL'
+
+        - name: Upload Trivy scan results to GitHub Security tab
+          uses: github/codeql-action/upload-sarif@v3
+          with:
+            sarif_file: 'trivy-results.sarif'
+
+        - name: Upload CodeQL results as an artifact
+          uses: actions/upload-artifact@v4
+          with:
+            name: trivy-results
+            path: trivy-results.sarif
+
   trivy_create_engagement:
     name: Create engagement in DefectDojo -Trivy
+    needs: trivy_scan
     runs-on: ubuntu-latest
     env:
       DEFECTDOJO_URL: "https://8519-2800-810-5e4-99ae-173e-f75c-5fd7-5460.ngrok-free.app"
@@ -100,6 +135,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download Trivy results artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: trivy-results  # El nombre del artefacto que subiste
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y curl
