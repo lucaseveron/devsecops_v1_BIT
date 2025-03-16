@@ -38,10 +38,8 @@ jobs:
 
       - name: Set engagement dates
         run: |
-          TODAY=$(date +%Y-%m-%d)
-          ENDDAY=$(date -d "+28 days" +%Y-%m-%d)
-          echo "TODAY=${TODAY}"
-          echo "ENDDAY=${ENDDAY}"
+            echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+            echo "ENDDAY=$(date -d '+28 days' +%Y-%m-%d)" >> $GITHUB_ENV
 
       - name: Create engagement in DefectDojo
         run: |
@@ -53,9 +51,9 @@ jobs:
             "name": "Trivy_#${{ github.run_id }}",
             "description": "${{ github.event.head_commit.message }}", 
             "version": "${{ github.ref }}",
-            "first_contacted": "2025-03-16",
-            "target_start": "2025-03-16",
-            "target_end": "2025-03-16",
+            "first_contacted": "'"$TODAY"'",
+            "target_start": "'"$TODAY"'",
+            "target_end": "'"$ENDDAY"'",
             "reason": "string",
             "tracker": "https://github.com/${{ github.repository }}",
             "test_strategy": null,
