@@ -80,3 +80,46 @@ jobs:
         with:
           name: defectdojo-env
           path: defectdojo.env
+  
+  defectdojo_publish_trivy:
+    name: Publish Trivy Scan to DefectDojo
+    runs-on: ubuntu-latest
+    env:
+      DEFECTDOJO_URL: "https://8519-2800-810-5e4-99ae-173e-f75c-5fd7-5460.ngrok-free.app"
+      DEFECTDOJO_TOKEN: "e3c422ed03c8c6566dbdba5d6f93c66bb779396d"
+      DEFECTDOJO_SCAN_MINIMUM_SEVERITY: "Info"
+      DEFECTDOJO_SCAN_ACTIVE: "true"
+      DEFECTDOJO_SCAN_VERIFIED: "false"
+      DEFECTDOJO_SCAN_CLOSE_OLD_FINDINGS: "true"
+      DEFECTDOJO_SCAN_PUSH_TO_JIRA: "false"
+      DEFECTDOJO_SCAN_ENVIRONMENT: "Default"
+      DEFECTDOJO_SCAN_TEST_TYPE: "SARIF"
+      DEFECTDOJO_PRODUCT_TYPE: "Github Actions"
+      DEFECTDOJO_PRODUCT_NAME: "Testing_Prod"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y curl
+
+      - name: Set scan date
+        run: |
+            echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+
+      - name: Upload Trivy Scan to DefectDojo
+        run: |
+          curl -X POST "${DEFECTDOJO_URL}/import-scan/" \
+          -H "accept: application/json" \
+          -H "Content-Type: multipart/form-data" \
+          -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
+          -F "scan_date=${TODAY}" \
+          -F "minimum_severity=${DEFECTDOJO_SCAN_MINIMUM_SEVERITY}" \
+          -F "active=${DEFECTDOJO_SCAN_ACTIVE}" \
+          -F "verified=${DEFECTDOJO_SCAN_VERIFIED}" \
+          -F "scan_type=${DEFECTDOJO_SCAN_TEST_TYPE}" \
+          -F "product_name=${DEFECTDOJO_PRODUCT_NAME}" \
+          -F "file=@trivy-results.sarif;type=application/sarif+json" \
+          -F "engagement_name=Trivy_#${{ github.run_id }}" \
+          -F "close_old_findings=${DEFECTDOJO_SCAN_CLOSE_OLD_FINDINGS}" \
+          -F "push_to_jira=${DEFECTDOJO_SCAN_PUSH_TO_JIRA}"
