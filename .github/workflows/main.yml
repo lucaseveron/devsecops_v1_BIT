@@ -84,7 +84,7 @@ jobs:
   trivy_import_results:
     name: Publish Trivy Scan in DefectDojo
     runs-on: ubuntu-latest
-    depends-on: trivy_create_engagement
+    needs: trivy_create_engagement
     env:
       DEFECTDOJO_URL: "https://8519-2800-810-5e4-99ae-173e-f75c-5fd7-5460.ngrok-free.app"
       DEFECTDOJO_TOKEN: "df9ab36562a1584ac253353c42313d526dd72a1f"
