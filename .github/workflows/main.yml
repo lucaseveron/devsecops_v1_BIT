@@ -40,6 +40,8 @@ jobs:
         run: |
           TODAY=$(date +%Y-%m-%d)
           ENDDAY=$(date -d "+28 days" +%Y-%m-%d)
+          echo "TODAY=${TODAY}"
+          echo "ENDDAY=${ENDDAY}"
           ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
           --header "Authorization: Token df9ab36562a1584ac253353c42313d526dd72a1f" \
           --header "Content-Type: application/json" \
