@@ -137,7 +137,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download Trivy results artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: trivy-results  # El nombre del artefacto que subiste
 
