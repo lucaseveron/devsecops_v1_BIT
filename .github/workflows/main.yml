@@ -86,7 +86,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEFECTDOJO_URL: "https://8519-2800-810-5e4-99ae-173e-f75c-5fd7-5460.ngrok-free.app"
-      DEFECTDOJO_TOKEN: "e3c422ed03c8c6566dbdba5d6f93c66bb779396d"
+      DEFECTDOJO_TOKEN: "df9ab36562a1584ac253353c42313d526dd72a1f"
       DEFECTDOJO_SCAN_MINIMUM_SEVERITY: "Info"
       DEFECTDOJO_SCAN_ACTIVE: "true"
       DEFECTDOJO_SCAN_VERIFIED: "false"
