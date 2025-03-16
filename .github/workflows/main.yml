@@ -37,14 +37,10 @@ jobs:
           sudo apt-get install -y curl jq coreutils
 
       - name: Set engagement dates
-        id: set_dates
         run: |
           TODAY=$(date +%Y-%m-%d)
           ENDDAY=$(date -d "+28 days" +%Y-%m-%d)
-          echo "TODAY=${TODAY}"
-          echo "ENDDAY=${ENDDAY}"
-          echo "::set-output name=today::$TODAY"
-          echo "::set-output name=endday::$ENDDAY"
+
 
       - name: Create engagement in DefectDojo
         run: |
@@ -56,9 +52,9 @@ jobs:
             "name": "Trivy_#${{ github.run_id }}",
             "description": "${{ github.event.head_commit.message }}", 
             "version": "${{ github.ref }}",
-            "first_contacted": "${{ steps.set_dates.outputs.today }}",
-            "target_start": "${{ steps.set_dates.outputs.today }}",
-            "target_end": "${{ steps.set_dates.outputs.endday }}"
+            "first_contacted": "${TODAY}",
+            "target_start": "${TODAY}",
+            "target_end": "${ENDDAY}",
             "reason": "string",
             "tracker": "https://github.com/${{ github.repository }}",
             "test_strategy": null,
