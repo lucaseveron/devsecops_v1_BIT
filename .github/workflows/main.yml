@@ -103,13 +103,13 @@ jobs:
             "source_code_management_server": '${DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER}',
             "orchestration_engine": '${DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE}'
           }' | jq -r '.id')
-          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo.env
+          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo1.env
 
       - name: Upload defectdojo.env file
         uses: actions/upload-artifact@v4
         with:
-          name: defectdojo-env
-          path: defectdojo.env
+          name: defectdojo1-env
+          path: defectdojo1.env
 
   
   codeql_import_results:
@@ -260,13 +260,13 @@ jobs:
             "source_code_management_server": '${DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER}',
             "orchestration_engine": '${DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE}'
           }' | jq -r '.id')
-          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo.env
+          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo2.env
 
       - name: Upload defectdojo.env file
         uses: actions/upload-artifact@v4
         with:
-          name: defectdojo-env
-          path: defectdojo.env
+          name: defectdojo2-env
+          path: defectdojo2.env
   
   trivy_import_results:
     name: Publish Trivy Scan in DefectDojo
