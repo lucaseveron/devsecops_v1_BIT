@@ -1,0 +1,93 @@
+name: "CodeQL Analysis"
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+#  schedule:
+#    - cron: '0 3 * * 1'  # Ejecutar cada lunes a las 3 AM UTC
+
+jobs:
+  codeql_analysis:
+    name: Analyze Code with CodeQL
+    runs-on: [self-hosted, defectdojo]
+
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: "python"  # Ajusta según tu proyecto
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          output: codeql-results.sarif  # Guardar en el directorio raíz con este nombre
+
+      - name: Upload CodeQL results as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-results
+          path: codeql-results.sarif
+
+  codeql_create_engagement:
+    name: Create engagement in DefectDojo - CodeQL
+    needs: codeql_analysis
+    runs-on: ubuntu-latest
+    env:
+      DEFECTDOJO_URL: "http://10.0.0.4:8080"
+      DEFECTDOJO_TOKEN: "02e57cbb331341b4c4cd578423941da2a3a26a6b"
+      DEFECTDOJO_ENGAGEMENT_PERIOD: 28
+      DEFECTDOJO_ENGAGEMENT_STATUS: "Not Started"
+      DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"
+      DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER: "null"
+      DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE: "null"
+      DEFECTDOJO_ENGAGEMENT_DEDUPLICATION_ON_ENGAGEMENT: "false"
+      DEFECTDOJO_ENGAGEMENT_THREAT_MODEL: "true"
+      DEFECTDOJO_ENGAGEMENT_API_TEST: "true"
+      DEFECTDOJO_ENGAGEMENT_PEN_TEST: "true"
+      DEFECTDOJO_ENGAGEMENT_CHECK_LIST: "true"
+      DEFECTDOJO_PRODUCTID: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq coreutils
+
+      - name: Set engagement dates
+        run: |
+            echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+            echo "ENDDAY=$(date -d '+28 days' +%Y-%m-%d)" >> $GITHUB_ENV
+
+      - name: Create engagement in DefectDojo
+        run: |
+          ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
+          --header "Authorization: Token 326e9d99968c8e2273557b7fd655c5c15a3ee91a" \
+          --header "Content-Type: application/json" \
+          --data '{
+            "name": "CI/CD Engagement",
+            "product": 1,
+            "engagement_type": "CI/CD",
+            "status": "In Progress",
+            "target_start": "2025-08-02",
+            "target_end": "2025-08-02"
+          }' | jq -r '.id')
+          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo1.env
+
+      - name: Upload defectdojo.env file
+        uses: actions/upload-artifact@v4
+        with:
+          name: defectdojo1-env
+          path: defectdojo1.env
