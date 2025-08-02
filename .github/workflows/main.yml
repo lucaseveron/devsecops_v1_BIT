@@ -11,7 +11,7 @@ on:
 jobs:
   codeql_analysis:
     name: Analyze Code with CodeQL
-    runs-on: ubuntu-latest
+    runs-on: [defectdojo]
 
     permissions:
       security-events: write
@@ -41,10 +41,10 @@ jobs:
   codeql_create_engagement:
     name: Create engagement in DefectDojo - CodeQL
     needs: codeql_analysis
-    runs-on: ubuntu-latest
+    runs-on: [defectdojo]
     env:
-      DEFECTDOJO_URL: "https://fa69-2800-810-5e4-99ae-acde-6a3a-8020-b18c.ngrok-free.app"
-      DEFECTDOJO_TOKEN: "326e9d99968c8e2273557b7fd655c5c15a3ee91a"
+      DEFECTDOJO_URL: "http://10.0.0.4:8080"
+      DEFECTDOJO_TOKEN: "02e57cbb331341b4c4cd578423941da2a3a26a6b"
       DEFECTDOJO_ENGAGEMENT_PERIOD: 28
       DEFECTDOJO_ENGAGEMENT_STATUS: "Not Started"
       DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"
@@ -74,7 +74,7 @@ jobs:
       - name: Create engagement in DefectDojo
         run: |
           ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
-          --header "Authorization: Token 326e9d99968c8e2273557b7fd655c5c15a3ee91a" \
+          --header "Authorization: Token 02e57cbb331341b4c4cd578423941da2a3a26a6b" \
           --header "Content-Type: application/json" \
           --data-raw '{
             "tags": ["GitHub Actions"],
@@ -114,11 +114,11 @@ jobs:
   
   codeql_import_results:
     name: Publish CodeQL Scan in DefectDojo
-    runs-on: ubuntu-latest
+    runs-on: [defectdojo]
     needs: codeql_create_engagement
     env:
-      DEFECTDOJO_URL: "https://fa69-2800-810-5e4-99ae-acde-6a3a-8020-b18c.ngrok-free.app"
-      DEFECTDOJO_TOKEN: "326e9d99968c8e2273557b7fd655c5c15a3ee91a"
+      DEFECTDOJO_URL: "http://10.0.0.4:8080"
+      DEFECTDOJO_TOKEN: "02e57cbb331341b4c4cd578423941da2a3a26a6b"
       DEFECTDOJO_SCAN_MINIMUM_SEVERITY: "Info"
       DEFECTDOJO_SCAN_ACTIVE: "true"
       DEFECTDOJO_SCAN_VERIFIED: "false"
@@ -163,7 +163,7 @@ jobs:
 
   trivy_scan:
       name: Trivy Scan
-      runs-on: ubuntu-20.04
+      runs-on: [defectdojo]
       permissions:
         security-events: write  # Add this line to ensure proper permissions
 
@@ -198,10 +198,10 @@ jobs:
   trivy_create_engagement:
     name: Create engagement in DefectDojo -Trivy
     needs: trivy_scan
-    runs-on: ubuntu-latest
+    runs-on: [defectdojo]
     env:
-      DEFECTDOJO_URL: "https://fa69-2800-810-5e4-99ae-acde-6a3a-8020-b18c.ngrok-free.app"
-      DEFECTDOJO_TOKEN: "326e9d99968c8e2273557b7fd655c5c15a3ee91a"
+      DEFECTDOJO_URL: "http://10.0.0.4:8080"
+      DEFECTDOJO_TOKEN: "02e57cbb331341b4c4cd578423941da2a3a26a6b"
       DEFECTDOJO_ENGAGEMENT_PERIOD: 28
       DEFECTDOJO_ENGAGEMENT_STATUS: "Not Started"
       DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"
@@ -231,7 +231,7 @@ jobs:
       - name: Create engagement in DefectDojo
         run: |
           ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
-          --header "Authorization: Token 326e9d99968c8e2273557b7fd655c5c15a3ee91a" \
+          --header "Authorization: Token 02e57cbb331341b4c4cd578423941da2a3a26a6b" \
           --header "Content-Type: application/json" \
           --data-raw '{
             "tags": ["GitHub Actions"],
@@ -270,11 +270,11 @@ jobs:
   
   trivy_import_results:
     name: Publish Trivy Scan in DefectDojo
-    runs-on: ubuntu-latest
+    runs-on: [defectdojo]
     needs: trivy_create_engagement
     env:
-      DEFECTDOJO_URL: "https://fa69-2800-810-5e4-99ae-acde-6a3a-8020-b18c.ngrok-free.app"
-      DEFECTDOJO_TOKEN: "326e9d99968c8e2273557b7fd655c5c15a3ee91a"
+      DEFECTDOJO_URL: "http://10.0.0.4:8080"
+      DEFECTDOJO_TOKEN: "02e57cbb331341b4c4cd578423941da2a3a26a6b"
       DEFECTDOJO_SCAN_MINIMUM_SEVERITY: "Info"
       DEFECTDOJO_SCAN_ACTIVE: "true"
       DEFECTDOJO_SCAN_VERIFIED: "false"
