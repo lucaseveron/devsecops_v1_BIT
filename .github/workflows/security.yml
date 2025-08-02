@@ -58,3 +58,10 @@ jobs:
           # Extraer el ID y guardarlo en un archivo .env
           ENGAGEMENT_ID=$(jq -r '.id' error_output.json)
           echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}" >> defectdojo1.env
+          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}"
+
+      - name: Upload defectdojo.env file
+        uses: actions/upload-artifact@v4
+        with:
+          name: defectdojo1-env
+          path: defectdojo1.env
