@@ -50,7 +50,7 @@ jobs:
       - name: Create engagement in DefectDojo
         run: |
           ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
-          --header "Authorization: Token 063006d7913751d0d68518c0ac530c3943050b7c" \
+          --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
           --header "Content-Type: application/json" \
           --data-raw '{
             "tags": ["GitHub Actions"],
