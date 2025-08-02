@@ -74,26 +74,26 @@ jobs:
       - name: Create engagement in DefectDojo
         run: |
           curl --silent --show-error --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
-          --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
-          --header "Content-Type: application/json" \
-          --data "{
-            "tags": ["GitHub Actions"],
-            "name": "CodeQL_#${{ github.run_id }}",
-            "description": "${{ github.event.head_commit.message }}", 
-            "version": "${{ github.ref }}",
-            "product": 1,
-            "reason": "Automated engagement",
-            "test_strategy": null,
-            "engagement_type": "CI/CD",
-            "status": "In Progress",
-            "target_start": "2025-08-02",
-            "target_end": "2025-08-02"
-          }" -o id.json
+            --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "{
+              \"tags\": [\"GitHub Actions\"],
+              \"name\": \"CodeQL_#${{ github.run_id }}\",
+              \"description\": \"${{ github.event.head_commit.message }}\", 
+              \"version\": \"${{ github.ref }}\",
+              \"product\": 1,
+              \"reason\": \"Automated engagement\",
+              \"test_strategy\": null,
+              \"engagement_type\": \"CI/CD\",
+              \"status\": \"In Progress\",
+              \"target_start\": \"2025-08-02\",
+              \"target_end\": \"2025-08-02\"
+            }" -o id.json
 
-          # Extraer el ID y guardarlo en un archivo .env
           ENGAGEMENT_ID=$(jq -r '.id' id.json)
           echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}" >> defectdojo1.env
           echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}"
+
 
       - name: Upload defectdojo.env file
         uses: actions/upload-artifact@v4
