@@ -81,7 +81,7 @@ jobs:
               \"name\": \"CodeQL_#${{ github.run_id }}\",
               \"description\": \"${{ github.event.head_commit.message }}\", 
               \"version\": \"${{ github.ref }}\",
-              \"product\": 1,
+              \"product\": \"${DEFECTDOJO_PRODUCTID}\", 
               \"reason\": \"Automated engagement\",
               \"test_strategy\": null,
               \"engagement_type\": \"CI/CD\",
