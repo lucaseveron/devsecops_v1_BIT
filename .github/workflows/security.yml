@@ -71,35 +71,21 @@ jobs:
             echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
             echo "ENDDAY=$(date -d '+28 days' +%Y-%m-%d)" >> $GITHUB_ENV
 
-      - name: Create engagement in DefectDojo and extract ID
+      - name: Create engagement in DefectDojo
         run: |
-          curl --silent --show-error --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
-            --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
-            --header "Content-Type: application/json" \
-            --data '{
-              "name": "CI/CD Engagement",
-              "product": 1,
-              "engagement_type": "CI/CD",
-              "status": "In Progress",
-              "target_start": "2025-08-02",
-              "target_end": "2025-08-02"
-            }' -o id.json
+          curl --silent --show-error --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
+          --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
+          --header "Content-Type: application/json" \
+          --data '{
+            "name": "CI/CD Engagement",
+            "product": 1,
+            "engagement_type": "CI/CD",
+            "status": "In Progress",
+            "target_start": "2025-08-02",
+            "target_end": "2025-08-02"
+          }' -o error_output.json
 
-          cat id.json
-
-          ENGAGEMENTID=$(jq -r '.id' id.json)
-
-          if [ "$ENGAGEMENTID" = "null" ] || [ -z "$ENGAGEMENTID" ]; then
-            echo "Error: No se pudo obtener el ID del engagement"
-            exit 1
-          fi
-
-          echo "DEFECTDOJO_ENGAGEMENTID=$ENGAGEMENTID" >> defectdojo1.env
-
-
-
-      - name: Upload defectdojo.env file
-        uses: actions/upload-artifact@v4
-        with:
-          name: defectdojo1-env
-          path: defectdojo1.env
+          # Extraer el ID y guardarlo en un archivo .env
+          ENGAGEMENT_ID=$(jq -r '.id' error_output.json)
+          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}" >> defectdojo1.env
+          echo "Engagement created with ID: ${ENGAGEMENT_ID}"
