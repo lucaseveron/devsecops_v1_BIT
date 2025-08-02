@@ -71,20 +71,32 @@ jobs:
             echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
             echo "ENDDAY=$(date -d '+28 days' +%Y-%m-%d)" >> $GITHUB_ENV
 
-      - name: Create engagement in DefectDojo
+      - name: Create engagement in DefectDojo with ID capture
         run: |
-          ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
-          --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
-          --header "Content-Type: application/json" \
-          --data '{
-            "name": "CI/CD Engagement",
-            "product": 1,
-            "engagement_type": "CI/CD",
-            "status": "In Progress",
-            "target_start": "2025-08-02",
-            "target_end": "2025-08-02"
-          }' | jq -r '.id')
+          RESPONSE=$(curl --silent --show-error --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
+            --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{
+              "name": "CI/CD Engagement",
+              "product": 1,
+              "engagement_type": "CI/CD",
+              "status": "In Progress",
+              "target_start": "2025-08-02",
+              "target_end": "2025-08-02"
+            }')
+
+          echo "Response: $RESPONSE"
+          
+          ENGAGEMENTID=$(echo "$RESPONSE" | jq -r '.id')
+          echo "Extracted ENGAGEMENTID: $ENGAGEMENTID"
+
+          if [ "$ENGAGEMENTID" = "null" ] || [ -z "$ENGAGEMENTID" ]; then
+            echo "Error: Failed to extract engagement ID"
+            exit 1
+          fi
+
           echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo1.env
+
 
       - name: Upload defectdojo.env file
         uses: actions/upload-artifact@v4
