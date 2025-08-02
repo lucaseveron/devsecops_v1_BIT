@@ -77,7 +77,7 @@ jobs:
           --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
           --header "Content-Type: application/json" \
           --data '{
-            "tags": ["GitHub Actions"],
+            "tags": "GitHub Actions",
             "name": "CodeQL_#${{ github.run_id }}",
             "product": 1,
             "engagement_type": "CI/CD",
