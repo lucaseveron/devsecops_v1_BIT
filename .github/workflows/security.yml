@@ -74,7 +74,7 @@ jobs:
       - name: Create engagement in DefectDojo
         run: |
           ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
-          --header "Authorization: Token 326e9d99968c8e2273557b7fd655c5c15a3ee91a" \
+          --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
           --header "Content-Type: application/json" \
           --data '{
             "name": "CI/CD Engagement",
