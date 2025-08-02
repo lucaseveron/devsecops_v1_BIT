@@ -49,7 +49,7 @@ jobs:
 
       - name: Create engagement in DefectDojo
         run: |
-          ENGAGEMENTID=$(curl --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
+          ENGAGEMENTID=$(curl -v --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
           --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
           --header "Content-Type: application/json" \
           --data-raw '{
