@@ -83,10 +83,10 @@ jobs:
             "status": "In Progress",
             "target_start": "2025-08-02",
             "target_end": "2025-08-02"
-          }' -o error_output.json
+          }' -o id.json
 
           # Extraer el ID y guardarlo en un archivo .env
-          ENGAGEMENT_ID=$(jq -r '.id' error_output.json)
+          ENGAGEMENT_ID=$(jq -r '.id' id.json)
           echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}" >> defectdojo1.env
           echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}"
 
