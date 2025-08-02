@@ -71,9 +71,9 @@ jobs:
             echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
             echo "ENDDAY=$(date -d '+28 days' +%Y-%m-%d)" >> $GITHUB_ENV
 
-      - name: Create engagement in DefectDojo with ID capture
+      - name: Create engagement in DefectDojo and extract ID
         run: |
-          RESPONSE=$(curl --silent --show-error --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
+          curl --silent --show-error --fail --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
             --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
             --header "Content-Type: application/json" \
             --data '{
@@ -83,19 +83,19 @@ jobs:
               "status": "In Progress",
               "target_start": "2025-08-02",
               "target_end": "2025-08-02"
-            }')
+            }' -o id.json
 
-          echo "Response: $RESPONSE"
-          
-          ENGAGEMENTID=$(echo "$RESPONSE" | jq -r '.id')
-          echo "Extracted ENGAGEMENTID: $ENGAGEMENTID"
+          cat id.json
+
+          ENGAGEMENTID=$(jq -r '.id' id.json)
 
           if [ "$ENGAGEMENTID" = "null" ] || [ -z "$ENGAGEMENTID" ]; then
-            echo "Error: Failed to extract engagement ID"
+            echo "Error: No se pudo obtener el ID del engagement"
             exit 1
           fi
 
-          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENTID}" >> defectdojo1.env
+          echo "DEFECTDOJO_ENGAGEMENTID=$ENGAGEMENTID" >> defectdojo1.env
+
 
 
       - name: Upload defectdojo.env file
