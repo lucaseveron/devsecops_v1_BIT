@@ -11,7 +11,7 @@ on:
 jobs:
   codeql_analysis:
     name: Analyze Code with CodeQL
-    runs-on: ubuntu-latest   # usar runner hospedado de GitHub
+    runs-on: ubuntu-latest
 
     permissions:
       security-events: write
@@ -25,7 +25,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: "python"  # ajusta según tu proyecto
+          languages: "python"
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
@@ -44,11 +44,17 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      # Respeto tus valores:
       DEFECTDOJO_URL: "http://107.21.152.191:8080"
       DEFECTDOJO_TOKEN: "2ff51b58d24988ccb47580fd79dab1a95d193ff7"
+
+      # Config engagement
       DEFECTDOJO_ENGAGEMENT_PERIOD: "28"
       DEFECTDOJO_ENGAGEMENT_STATUS: "In Progress"
-      DEFECTDOJO_PRODUCTID: "1"
+
+      # Producto: podés setear ID o Nombre (si no existe, se crea)
+      DEFECTDOJO_PRODUCTID: ""                 # si sabés el ID, ponelo acá
+      DEFECTDOJO_PRODUCT_NAME: "devsecops_v1_BIT"
 
     steps:
       - uses: actions/checkout@v4
@@ -61,16 +67,54 @@ jobs:
       - name: Set engagement dates (UTC)
         run: |
           echo "TODAY=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
-          # ¡CORREGIDO! comillas dobles para que se expanda la variable
           echo "ENDDAY=$(date -u -d \"+${DEFECTDOJO_ENGAGEMENT_PERIOD:-28} days\" +%Y-%m-%d)" >> $GITHUB_ENV
 
       - name: Sanity check DefectDojo connectivity
         run: |
           set -e
-          curl -fsS "${DEFECTDOJO_URL%/}/api/v2/engagements/?limit=1" \
+          BASE="${DEFECTDOJO_URL%/}/api/v2"
+          curl -fsS "$BASE/engagements/?limit=1" \
             -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
             -H "Accept: application/json" -o /dev/null
           echo "✅ Conexión con Dojo OK"
+
+      - name: Resolve/ensure DefectDojo Product
+        run: |
+          set -euo pipefail
+          BASE="${DEFECTDOJO_URL%/}/api/v2"
+          AUTH="Authorization: Token ${DEFECTDOJO_TOKEN}"
+
+          # 1) Si me diste un ID explícito, lo valido
+          if [ -n "${DEFECTDOJO_PRODUCTID:-}" ]; then
+            code=$(curl -s -o /dev/null -w "%{http_code}" -H "$AUTH" "$BASE/products/${DEFECTDOJO_PRODUCTID}/")
+            if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+              echo "PRODUCT_ID=${DEFECTDOJO_PRODUCTID}" >> $GITHUB_ENV
+            fi
+          fi
+
+          # 2) Si no hay PRODUCT_ID válido, busco por nombre (case-insensitive)
+          if [ -z "${PRODUCT_ID:-}" ]; then
+            NAME="${DEFECTDOJO_PRODUCT_NAME:-devsecops_v1_BIT}"
+            id=$(curl -s -H "$AUTH" "$BASE/products/?name__iexact=${NAME}" | jq -r '.results[0].id // empty')
+            if [ -n "$id" ]; then
+              echo "PRODUCT_ID=$id" >> $GITHUB_ENV
+            else
+              # 3) Si no existe, creo ProductType (si hace falta) y Product
+              pt=$(curl -s -H "$AUTH" "$BASE/product_types/?limit=1" | jq -r '.results[0].id // empty')
+              if [ -z "$pt" ]; then
+                pt=$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
+                      "$BASE/product_types/" --data '{"name":"Default"}' | jq -r '.id')
+              fi
+              new=$(jq -n --arg name "$NAME" --argjson pt "$pt" '{name:$name, prod_type:$pt}')
+              id=$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
+                    "$BASE/products/" --data "$new" | jq -r '.id')
+              if [ -z "$id" ] || [ "$id" = "null" ]; then
+                echo "❌ No pude crear el Product en DefectDojo"; exit 1
+              fi
+              echo "PRODUCT_ID=$id" >> $GITHUB_ENV
+              echo "✅ Product creado: $NAME (ID=$id)"
+            fi
+          fi
 
       - name: Create engagement in DefectDojo (minimal payload)
         id: create_engagement
@@ -82,7 +126,6 @@ jobs:
           if [ -z "$DESC" ]; then DESC="${{ github.event.pull_request.title }}"; fi
           if [ -z "$DESC" ]; then DESC="CodeQL run"; fi
 
-          # Payload mínimo y compatible
           payload=$(jq -n \
             --arg name "CodeQL_#${{ github.run_id }}" \
             --arg description "$DESC" \
@@ -90,14 +133,13 @@ jobs:
             --arg start "${TODAY}" \
             --arg end   "${ENDDAY}" \
             --arg type  "CI/CD" \
-            --argjson product ${DEFECTDOJO_PRODUCTID} \
+            --argjson product ${PRODUCT_ID} \
             '{ name: $name, description: $description, status: $status,
                engagement_type: $type, target_start: $start, target_end: $end,
                product: $product }')
 
           echo "$payload" > payload.json
 
-          # Sin -f para ver el cuerpo si falla
           http_code=$(curl -sS -o id.json -w "%{http_code}" -X POST \
             "${DEFECTDOJO_URL%/}/api/v2/engagements/" \
             -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
@@ -131,6 +173,3 @@ jobs:
         with:
           name: defectdojo1-env
           path: defectdojo1.env
-
-
-
