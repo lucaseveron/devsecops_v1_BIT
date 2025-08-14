@@ -6,12 +6,13 @@ on:
   pull_request:
     branches: [ "main", "develop" ]
   # schedule:
-  #   - cron: '0 3 * * 1'
+  #   - cron: '0 3 * * 1'  # Lunes 3AM UTC
 
 jobs:
   codeql_analysis:
     name: Analyze Code with CodeQL
-    runs-on: [self-hosted, defectdojo]
+    # runs-on: [self-hosted, defectdojo]  # <- Úsalo cuando tu runner tenga la label
+    runs-on: self-hosted
 
     permissions:
       security-events: write
@@ -19,6 +20,13 @@ jobs:
       contents: read
 
     steps:
+      - name: Runner sanity
+        run: |
+          echo "Runner: $RUNNER_NAME ($RUNNER_OS/$RUNNER_ARCH)"
+          echo "Labels (tracking id): $RUNNER_TRACKING_ID"
+          echo "Repo: $GITHUB_REPOSITORY  Ref: $GITHUB_REF  Actor: $GITHUB_ACTOR"
+          echo "--- ENV (top 30) ---"; env | sort | head -n 30
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -41,15 +49,16 @@ jobs:
   codeql_create_engagement:
     name: Create engagement in DefectDojo - CodeQL
     needs: codeql_analysis
-    # si querés que corra aunque falle CodeQL, dejá esta línea:
     if: always()
-    runs-on: [self-hosted, defectdojo]
+    # runs-on: [self-hosted, defectdojo]  # <- Úsalo cuando tu runner tenga la label
+    runs-on: self-hosted
 
     env:
-      # ⚠️ poné esto en Secrets/Vars cuando puedas
+      # ⚠️ Mover a Secrets/Vars (dejado aquí para probar rápido)
       DEFECTDOJO_URL: "http://107.21.152.191:8080"
       DEFECTDOJO_TOKEN: "2ff51b58d24988ccb47580fd79dab1a95d193ff7"
 
+      # Config engagement
       DEFECTDOJO_ENGAGEMENT_PERIOD: "28"
       DEFECTDOJO_ENGAGEMENT_STATUS: "In Progress"
       DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"
@@ -63,6 +72,13 @@ jobs:
       DEFECTDOJO_PRODUCTID: "1"
 
     steps:
+      - name: Runner sanity
+        run: |
+          echo "Runner: $RUNNER_NAME ($RUNNER_OS/$RUNNER_ARCH)"
+          echo "Labels (tracking id): $RUNNER_TRACKING_ID"
+          echo "Repo: $GITHUB_REPOSITORY  Ref: $GITHUB_REF  Actor: $GITHUB_ACTOR"
+          echo "--- ENV (top 30) ---"; env | sort | head -n 30
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -82,15 +98,14 @@ jobs:
           curl -fsS "${DEFECTDOJO_URL}/api/v2/engagements/?limit=1" \
             -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
             -H "Accept: application/json" -o /dev/null
-          echo "✅ Conexión OK"
+          echo "✅ Conexión con Dojo OK"
 
-      - name: Create engagement in DefectDojo (robusto con jq)
+      - name: Create engagement in DefectDojo (jq)
         id: create_engagement
         shell: bash
         run: |
           set -euo pipefail
 
-          # fallback de descripción compatible con push y PR
           DESC="${{ github.event.head_commit.message }}"
           if [ -z "$DESC" ]; then DESC="${{ github.event.pull_request.title }}"; fi
           if [ -z "$DESC" ]; then DESC="CodeQL run"; fi
@@ -147,17 +162,18 @@ jobs:
             }')
 
           echo "$payload" > payload.json
+          echo "Payload listo:"
+          cat payload.json
 
           resp=$(curl -fsS -X POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
             -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
             -H "Content-Type: application/json" \
             --data @payload.json)
 
-          echo "$resp" > id.json
+          echo "$resp" | tee id.json
           ENGAGEMENT_ID=$(jq -r '.id // empty' id.json)
           if [[ -z "$ENGAGEMENT_ID" ]]; then
-            echo "⚠️ No se obtuvo ID. Respuesta:"
-            cat id.json
+            echo "⚠️ No se obtuvo ID. Respuesta de la API arriba ↑"
             exit 1
           fi
 
@@ -165,11 +181,17 @@ jobs:
           echo "engagement_id=${ENGAGEMENT_ID}" >> "$GITHUB_OUTPUT"
           echo "✅ Engagement creado: ID=${ENGAGEMENT_ID}"
 
+      - name: Upload debug artifacts (payload & id)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: defectdojo-debug
+          path: |
+            payload.json
+            id.json
+
       - name: Upload defectdojo1.env
         uses: actions/upload-artifact@v4
         with:
           name: defectdojo1-env
           path: defectdojo1.env
-
-
- 
