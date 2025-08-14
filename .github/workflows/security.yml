@@ -11,7 +11,7 @@ on:
 jobs:
   codeql_analysis:
     name: Analyze Code with CodeQL
-    runs-on: ubuntu-latest   # <— CAMBIO: usar runner hospedado de GitHub
+    runs-on: ubuntu-latest   # usar runner hospedado de GitHub
 
     permissions:
       security-events: write
@@ -41,13 +41,13 @@ jobs:
   codeql_create_engagement:
     name: Create engagement in DefectDojo - CodeQL
     needs: codeql_analysis
-    # evita self-hosted en PRs desde forks (si lo necesitás, quitá este if)
+    # opcional: evita ejecuciones en PRs desde forks
     if: >
       always() &&
       (github.event_name != 'pull_request' ||
        github.event.pull_request.head.repo.full_name == github.repository)
 
-    runs-on: self-hosted  # dejé self-hosted como tenías
+    runs-on: ubuntu-latest  # CAMBIO: también en runner de GitHub
 
     env:
       # (respetado tal cual)
@@ -180,4 +180,5 @@ jobs:
         with:
           name: defectdojo1-env
           path: defectdojo1.env
+
 
