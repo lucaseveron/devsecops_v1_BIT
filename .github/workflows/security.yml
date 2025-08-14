@@ -5,8 +5,8 @@ on:
     branches: [ "main", "develop" ]
   pull_request:
     branches: [ "main", "develop" ]
-#  schedule:
-#    - cron: '0 3 * * 1'  # Ejecutar cada lunes a las 3 AM UTC
+  # schedule:
+  #   - cron: '0 3 * * 1'  # Ejecutar cada lunes a las 3 AM UTC
 
 jobs:
   codeql_analysis:
@@ -42,15 +42,19 @@ jobs:
     name: Create engagement in DefectDojo - CodeQL
     needs: codeql_analysis
     runs-on: [self-hosted, defectdojo]
+
     env:
+      # ⛔️ En cuanto puedas, pasá esto a Secrets/Vars del repo/org/env
       DEFECTDOJO_URL: "http://107.21.152.191:8080"
       DEFECTDOJO_TOKEN: "2ff51b58d24988ccb47580fd79dab1a95d193ff7"
+
+      # Config de engagement
       DEFECTDOJO_ENGAGEMENT_PERIOD: 28
-      DEFECTDOJO_ENGAGEMENT_STATUS: "Not Started"
-      DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"
-      DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER: "null"
-      DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE: "null"
-      DEFECTDOJO_ENGAGEMENT_DEDUPLICATION_ON_ENGAGEMENT: "false"
+      DEFECTDOJO_ENGAGEMENT_STATUS: "In Progress"
+      DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"                    # "null" -> null
+      DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER: "null"   # "null" -> null
+      DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE: "null"            # "null" -> null
+      DEFECTDOJO_ENGAGEMENT_DEDUPLICATION_ON_ENGAGEMENT: "true"     # "true"/"false" -> boolean
       DEFECTDOJO_ENGAGEMENT_THREAT_MODEL: "true"
       DEFECTDOJO_ENGAGEMENT_API_TEST: "true"
       DEFECTDOJO_ENGAGEMENT_PEN_TEST: "true"
@@ -68,29 +72,94 @@ jobs:
 
       - name: Set engagement dates
         run: |
-            echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
-            echo "ENDDAY=$(date -d '+28 days' +%Y-%m-%d)" >> $GITHUB_ENV
+          echo "TODAY=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
+          echo "ENDDAY=$(date -u -d '+${DEFECTDOJO_ENGAGEMENT_PERIOD:-28} days' +%Y-%m-%d)" >> $GITHUB_ENV
 
-      - name: Create engagement in DefectDojo
+      - name: Create engagement in DefectDojo (robusto, con jq)
+        id: create_engagement
+        shell: bash
         run: |
-          curl --silent --show-error --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
-          --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
-          --header "Content-Type: application/json" \
-          --data '{
-            "product": '${DEFECTDOJO_PRODUCTID}',
-            "name": "CodeQL_#${{ github.run_id }}",
-            "engagement_type": "CI/CD",
-            "status": "In Progress",
-            "target_start": "2025-08-02",
-            "target_end": "2025-08-02"
-          }' -o id.json
+          set -euo pipefail
 
-          # Extraer el ID y guardarlo en un archivo .env
-          ENGAGEMENT_ID=$(jq -r '.id' id.json)
-          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}" >> defectdojo1.env
-          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}"
+          # Mensaje/descr: funciona en push y pull_request
+          DESC="${{ github.event.head_commit.message || github.event.pull_request.title || 'CodeQL run' }}"
 
-      - name: Upload defectdojo.env file
+          # Construir payload confiable (booleans y null reales con --argjson)
+          payload=$(jq -n \
+            --arg name "CodeQL_#${{ github.run_id }}" \
+            --arg description "$DESC" \
+            --arg version "${{ github.ref }}" \
+            --arg first_contacted "${TODAY}" \
+            --arg target_start "${TODAY}" \
+            --arg target_end "${ENDDAY}" \
+            --arg reason "Automated engagement" \
+            --arg tracker "https://github.com/${{ github.repository }}" \
+            --arg status "${DEFECTDOJO_ENGAGEMENT_STATUS}" \
+            --arg build_id "${{ github.run_id }}" \
+            --arg commit_hash "${{ github.sha }}" \
+            --arg branch_tag "${{ github.ref_name }}" \
+            --arg scm_uri "https://github.com/${{ github.repository }}" \
+            --argjson product ${DEFECTDOJO_PRODUCTID} \
+            --argjson threat_model ${DEFECTDOJO_ENGAGEMENT_THREAT_MODEL} \
+            --argjson api_test ${DEFECTDOJO_ENGAGEMENT_API_TEST} \
+            --argjson pen_test ${DEFECTDOJO_ENGAGEMENT_PEN_TEST} \
+            --argjson check_list ${DEFECTDOJO_ENGAGEMENT_CHECK_LIST} \
+            --argjson dedup ${DEFECTDOJO_ENGAGEMENT_DEDUPLICATION_ON_ENGAGEMENT} \
+            --argjson build_server ${DEFECTDOJO_ENGAGEMENT_BUILD_SERVER} \
+            --argjson scm_server ${DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER} \
+            --argjson orch_engine ${DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE} \
+            '{
+              tags: ["GitHub Actions"],
+              name: $name,
+              description: $description,
+              version: $version,
+              first_contacted: $first_contacted,
+              target_start: $target_start,
+              target_end: $target_end,
+              reason: $reason,
+              tracker: $tracker,
+              test_strategy: null,
+              threat_model: $threat_model,
+              api_test: $api_test,
+              pen_test: $pen_test,
+              check_list: $check_list,
+              status: $status,
+              engagement_type: "CI/CD",
+              build_id: $build_id,
+              commit_hash: $commit_hash,
+              branch_tag: $branch_tag,
+              source_code_management_uri: $scm_uri,
+              deduplication_on_engagement: $dedup,
+              product: $product,
+              build_server: $build_server,
+              source_code_management_server: $scm_server,
+              orchestration_engine: $orch_engine
+            }')
+
+          echo "$payload" > payload.json
+
+          # Llamada API
+          resp=$(curl -fsS -X POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
+            -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data @payload.json)
+
+          echo "$resp" > id.json
+
+          ENGAGEMENT_ID=$(jq -r '.id // empty' id.json)
+          if [[ -z "${ENGAGEMENT_ID}" ]]; then
+            echo "⚠️ No se obtuvo ID. Respuesta:"
+            cat id.json
+            exit 1
+          fi
+
+          # Guardar en .env y como output del step
+          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}" | tee -a defectdojo1.env
+          echo "engagement_id=${ENGAGEMENT_ID}" >> "$GITHUB_OUTPUT"
+
+          echo "✅ Engagement creado: ID=${ENGAGEMENT_ID}"
+
+      - name: Upload defectdojo1.env
         uses: actions/upload-artifact@v4
         with:
           name: defectdojo1-env
