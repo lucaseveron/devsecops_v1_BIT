@@ -2,16 +2,17 @@ name: "CodeQL Analysis"
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: ["main"]
+    branches: [ "main", "develop" ]
   # schedule:
-  #   - cron: '0 3 * * 1'  # Lunes 3AM UTC
+  #   - cron: '0 3 * * 1'
 
 jobs:
   codeql_analysis:
     name: Analyze Code with CodeQL
-    runs-on: self-hosted
+    # Self-hosted con label defectdojo (asegúrate de agregarlo en el runner)
+    runs-on: [self-hosted, defectdojo]
 
     permissions:
       security-events: write
@@ -23,7 +24,6 @@ jobs:
         run: |
           echo "Runner: $RUNNER_NAME ($RUNNER_OS/$RUNNER_ARCH)"
           echo "Repo: $GITHUB_REPOSITORY  Ref: $GITHUB_REF  Actor: $GITHUB_ACTOR"
-          # Evitar imprimir variables sensibles
           echo "--- ENV (sanitizado) ---"
           env | sort | grep -Ev 'DEFECTDOJO_TOKEN|DEFECTDOJO_URL|TOKEN|SECRET' | head -n 30
 
@@ -33,7 +33,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: "python"  # ajusta según tu proyecto
+          languages: "python"
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
@@ -49,15 +49,20 @@ jobs:
   codeql_create_engagement:
     name: Create engagement in DefectDojo - CodeQL
     needs: codeql_analysis
-    if: always()
-    runs-on: self-hosted
+
+    # Evita usar self-hosted en PRs desde forks (que suelen no estar permitidos)
+    if: >
+      always() &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+
+    runs-on: [self-hosted, defectdojo]
 
     env:
-      # ⚠️ Respetando tus valores actuales (en claro para prueba rápida)
+      # (Respetado tal cual pediste)
       DEFECTDOJO_URL: "http://107.21.152.191:8080"
       DEFECTDOJO_TOKEN: "2ff51b58d24988ccb47580fd79dab1a95d193ff7"
 
-      # Config engagement
       DEFECTDOJO_ENGAGEMENT_PERIOD: "28"
       DEFECTDOJO_ENGAGEMENT_STATUS: "In Progress"
       DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"
@@ -75,7 +80,6 @@ jobs:
         run: |
           echo "Runner: $RUNNER_NAME ($RUNNER_OS/$RUNNER_ARCH)"
           echo "Repo: $GITHUB_REPOSITORY  Ref: $GITHUB_REF  Actor: $GITHUB_ACTOR"
-          # Evitar imprimir variables sensibles
           echo "--- ENV (sanitizado) ---"
           env | sort | grep -Ev 'DEFECTDOJO_TOKEN|DEFECTDOJO_URL|TOKEN|SECRET' | head -n 30
 
@@ -162,9 +166,6 @@ jobs:
             }')
 
           echo "$payload" > payload.json
-          echo "Payload listo:"
-          cat payload.json
-
           resp=$(curl -fsS -X POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
             -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
             -H "Content-Type: application/json" \
