@@ -11,7 +11,6 @@ on:
 jobs:
   codeql_analysis:
     name: Analyze Code with CodeQL
-    # runs-on: [self-hosted, defectdojo]  # <- Úsalo cuando tu runner tenga la label
     runs-on: self-hosted
 
     permissions:
@@ -23,9 +22,10 @@ jobs:
       - name: Runner sanity
         run: |
           echo "Runner: $RUNNER_NAME ($RUNNER_OS/$RUNNER_ARCH)"
-          echo "Labels (tracking id): $RUNNER_TRACKING_ID"
           echo "Repo: $GITHUB_REPOSITORY  Ref: $GITHUB_REF  Actor: $GITHUB_ACTOR"
-          echo "--- ENV (top 30) ---"; env | sort | head -n 30
+          # Evitar imprimir variables sensibles
+          echo "--- ENV (sanitizado) ---"
+          env | sort | grep -Ev 'DEFECTDOJO_TOKEN|DEFECTDOJO_URL|TOKEN|SECRET' | head -n 30
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -50,11 +50,10 @@ jobs:
     name: Create engagement in DefectDojo - CodeQL
     needs: codeql_analysis
     if: always()
-    # runs-on: [self-hosted, defectdojo]  # <- Úsalo cuando tu runner tenga la label
     runs-on: self-hosted
 
     env:
-      # ⚠️ Mover a Secrets/Vars (dejado aquí para probar rápido)
+      # ⚠️ Respetando tus valores actuales (en claro para prueba rápida)
       DEFECTDOJO_URL: "http://107.21.152.191:8080"
       DEFECTDOJO_TOKEN: "2ff51b58d24988ccb47580fd79dab1a95d193ff7"
 
@@ -75,9 +74,10 @@ jobs:
       - name: Runner sanity
         run: |
           echo "Runner: $RUNNER_NAME ($RUNNER_OS/$RUNNER_ARCH)"
-          echo "Labels (tracking id): $RUNNER_TRACKING_ID"
           echo "Repo: $GITHUB_REPOSITORY  Ref: $GITHUB_REF  Actor: $GITHUB_ACTOR"
-          echo "--- ENV (top 30) ---"; env | sort | head -n 30
+          # Evitar imprimir variables sensibles
+          echo "--- ENV (sanitizado) ---"
+          env | sort | grep -Ev 'DEFECTDOJO_TOKEN|DEFECTDOJO_URL|TOKEN|SECRET' | head -n 30
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -87,7 +87,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl jq coreutils
 
-      - name: Set engagement dates
+      - name: Set engagement dates (UTC)
         run: |
           echo "TODAY=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
           echo "ENDDAY=$(date -u -d '+${DEFECTDOJO_ENGAGEMENT_PERIOD:-28} days' +%Y-%m-%d)" >> $GITHUB_ENV
@@ -195,3 +195,4 @@ jobs:
         with:
           name: defectdojo1-env
           path: defectdojo1.env
+
