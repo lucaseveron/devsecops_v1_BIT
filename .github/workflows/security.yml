@@ -43,8 +43,8 @@ jobs:
     needs: codeql_analysis
     runs-on: [self-hosted, defectdojo]
     env:
-      DEFECTDOJO_URL: "http://10.0.0.4:8080"
-      DEFECTDOJO_TOKEN: "02e57cbb331341b4c4cd578423941da2a3a26a6b"
+      DEFECTDOJO_URL: "http://107.21.152.191:8080"
+      DEFECTDOJO_TOKEN: "2ff51b58d24988ccb47580fd79dab1a95d193ff7"
       DEFECTDOJO_ENGAGEMENT_PERIOD: 28
       DEFECTDOJO_ENGAGEMENT_STATUS: "Not Started"
       DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"
@@ -96,51 +96,4 @@ jobs:
           name: defectdojo1-env
           path: defectdojo1.env
 
-  codeql_import_results:
-    name: Publish CodeQL Scan in DefectDojo
-    runs-on: [self-hosted, defectdojo]
-    needs: codeql_create_engagement
-    env:
-      DEFECTDOJO_URL: "http://10.0.0.4:8080"
-      DEFECTDOJO_TOKEN: "02e57cbb331341b4c4cd578423941da2a3a26a6b"
-      DEFECTDOJO_SCAN_MINIMUM_SEVERITY: "Info"
-      DEFECTDOJO_SCAN_ACTIVE: "true"
-      DEFECTDOJO_SCAN_VERIFIED: "false"
-      DEFECTDOJO_SCAN_CLOSE_OLD_FINDINGS: "true"
-      DEFECTDOJO_SCAN_PUSH_TO_JIRA: "false"
-      DEFECTDOJO_SCAN_ENVIRONMENT: "Default"
-      DEFECTDOJO_SCAN_TEST_TYPE: "SARIF"
-      DEFECTDOJO_PRODUCT_TYPE: "Github Actions"
-      DEFECTDOJO_PRODUCT_NAME: "Prueba Boreal"
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download CodeQL results artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: codeql-results  # El nombre del artefacto que subiste
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y curl
-
-      - name: Set scan date
-        run: |
-            echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
-
-      - name: Upload CodeQL Scan to DefectDojo
-        run: |
-          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
-          -H "accept: application/json" \
-          -H "Content-Type: multipart/form-data" \
-          -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
-          -F "scan_date=${TODAY}" \
-          -F "minimum_severity=${DEFECTDOJO_SCAN_MINIMUM_SEVERITY}" \
-          -F "active=${DEFECTDOJO_SCAN_ACTIVE}" \
-          -F "verified=${DEFECTDOJO_SCAN_VERIFIED}" \
-          -F "scan_type=${DEFECTDOJO_SCAN_TEST_TYPE}" \
-          -F "product_name=${DEFECTDOJO_PRODUCT_NAME}" \
-          -F "file=@python.sarif;type=application/sarif+json" \
-          -F "engagement_name=CodeQL_#${{ github.run_id }}" \
-          -F "close_old_findings=${DEFECTDOJO_SCAN_CLOSE_OLD_FINDINGS}" \
-          -F "push_to_jira=${DEFECTDOJO_SCAN_PUSH_TO_JIRA}"
+ 
