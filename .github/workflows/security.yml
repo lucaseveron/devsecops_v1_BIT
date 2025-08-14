@@ -1,4 +1,4 @@
-name: "CodeQL Analysis" 
+name: "CodeQL Analysis"
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ "main", "develop" ]
   # schedule:
-  #   - cron: '0 3 * * 1'  # Ejecutar cada lunes a las 3 AM UTC
+  #   - cron: '0 3 * * 1'
 
 jobs:
   codeql_analysis:
@@ -25,12 +25,12 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: "python"  # Ajusta según tu proyecto
+          languages: "python"  # ajusta según tu proyecto
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          output: codeql-results.sarif  # Guardar en el directorio raíz con este nombre
+          output: codeql-results.sarif
 
       - name: Upload CodeQL results as an artifact
         uses: actions/upload-artifact@v4
@@ -41,20 +41,21 @@ jobs:
   codeql_create_engagement:
     name: Create engagement in DefectDojo - CodeQL
     needs: codeql_analysis
+    # si querés que corra aunque falle CodeQL, dejá esta línea:
+    if: always()
     runs-on: [self-hosted, defectdojo]
 
     env:
-      # ⛔️ En cuanto puedas, pasá esto a Secrets/Vars del repo/org/env
+      # ⚠️ poné esto en Secrets/Vars cuando puedas
       DEFECTDOJO_URL: "http://107.21.152.191:8080"
       DEFECTDOJO_TOKEN: "2ff51b58d24988ccb47580fd79dab1a95d193ff7"
 
-      # Config de engagement
-      DEFECTDOJO_ENGAGEMENT_PERIOD: 28
+      DEFECTDOJO_ENGAGEMENT_PERIOD: "28"
       DEFECTDOJO_ENGAGEMENT_STATUS: "In Progress"
-      DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"                    # "null" -> null
-      DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER: "null"   # "null" -> null
-      DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE: "null"            # "null" -> null
-      DEFECTDOJO_ENGAGEMENT_DEDUPLICATION_ON_ENGAGEMENT: "true"     # "true"/"false" -> boolean
+      DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"
+      DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER: "null"
+      DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE: "null"
+      DEFECTDOJO_ENGAGEMENT_DEDUPLICATION_ON_ENGAGEMENT: "true"
       DEFECTDOJO_ENGAGEMENT_THREAT_MODEL: "true"
       DEFECTDOJO_ENGAGEMENT_API_TEST: "true"
       DEFECTDOJO_ENGAGEMENT_PEN_TEST: "true"
@@ -75,16 +76,25 @@ jobs:
           echo "TODAY=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
           echo "ENDDAY=$(date -u -d '+${DEFECTDOJO_ENGAGEMENT_PERIOD:-28} days' +%Y-%m-%d)" >> $GITHUB_ENV
 
-      - name: Create engagement in DefectDojo (robusto, con jq)
+      - name: Sanity check DefectDojo connectivity
+        run: |
+          set -e
+          curl -fsS "${DEFECTDOJO_URL}/api/v2/engagements/?limit=1" \
+            -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
+            -H "Accept: application/json" -o /dev/null
+          echo "✅ Conexión OK"
+
+      - name: Create engagement in DefectDojo (robusto con jq)
         id: create_engagement
         shell: bash
         run: |
           set -euo pipefail
 
-          # Mensaje/descr: funciona en push y pull_request
-          DESC="${{ github.event.head_commit.message || github.event.pull_request.title || 'CodeQL run' }}"
+          # fallback de descripción compatible con push y PR
+          DESC="${{ github.event.head_commit.message }}"
+          if [ -z "$DESC" ]; then DESC="${{ github.event.pull_request.title }}"; fi
+          if [ -z "$DESC" ]; then DESC="CodeQL run"; fi
 
-          # Construir payload confiable (booleans y null reales con --argjson)
           payload=$(jq -n \
             --arg name "CodeQL_#${{ github.run_id }}" \
             --arg description "$DESC" \
@@ -138,25 +148,21 @@ jobs:
 
           echo "$payload" > payload.json
 
-          # Llamada API
           resp=$(curl -fsS -X POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
             -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
             -H "Content-Type: application/json" \
             --data @payload.json)
 
           echo "$resp" > id.json
-
           ENGAGEMENT_ID=$(jq -r '.id // empty' id.json)
-          if [[ -z "${ENGAGEMENT_ID}" ]]; then
+          if [[ -z "$ENGAGEMENT_ID" ]]; then
             echo "⚠️ No se obtuvo ID. Respuesta:"
             cat id.json
             exit 1
           fi
 
-          # Guardar en .env y como output del step
           echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}" | tee -a defectdojo1.env
           echo "engagement_id=${ENGAGEMENT_ID}" >> "$GITHUB_OUTPUT"
-
           echo "✅ Engagement creado: ID=${ENGAGEMENT_ID}"
 
       - name: Upload defectdojo1.env
@@ -164,5 +170,6 @@ jobs:
         with:
           name: defectdojo1-env
           path: defectdojo1.env
+
 
  
