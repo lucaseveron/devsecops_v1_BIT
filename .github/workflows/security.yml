@@ -1,4 +1,4 @@
-name: CodeQL + DefectDojo
+name: CodeQL + DefectDojo 
 
 on:
   push:
