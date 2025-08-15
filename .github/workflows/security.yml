@@ -1,4 +1,4 @@
-name: CodeQL + DefectDojo 
+name: CodeQL + DefectDojo
 
 on:
   push:
@@ -20,18 +20,17 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: python  # ajustá según tu repo
+          languages: python
 
       - name: Perform CodeQL Analysis (no upload to GH)
         uses: github/codeql-action/analyze@v3
         with:
           upload: false
-          output: ./codeql-sarif   # <-- directorio
+          output: ./codeql-sarif
 
       - name: Package SARIF(s)
         run: |
           ls -l ./codeql-sarif
-          # si hubiera múltiples lenguajes, quedan varios .sarif
           tar -czf sarif.tgz -C ./codeql-sarif .
 
       - name: Upload SARIF artifact
@@ -45,10 +44,10 @@ jobs:
     needs: codeql_analysis
     runs-on: ubuntu-latest
     env:
-      DD_URL: ${{ secrets.DD_URL }}                # ej: https://tu-defectdojo
-      DD_TOKEN: ${{ secrets.DD_TOKEN }}            # Token API
-      DD_PRODUCT_NAME: ${{ vars.DD_PRODUCT_NAME }} # ej: "Prueba Boreal"
-      DD_PRODUCT_TYPE_NAME: "GitHub Actions"       # opcional, se auto-crea si no existe
+      DD_URL: ${{ secrets.DD_URL }}                 # ej: http://3.84.33.199:8080
+      DD_TOKEN: ${{ secrets.DD_TOKEN }}
+      DD_PRODUCT_NAME: ${{ vars.DD_PRODUCT_NAME }}  # si no existe, usamos repo como default
+      DD_PRODUCT_TYPE_NAME: "GitHub Actions"
     steps:
       - uses: actions/checkout@v4
 
@@ -58,10 +57,15 @@ jobs:
           name: codeql-sarif
           path: ./sarif
 
-      - name: Install curl & jq (si hace falta)
+      - name: Install curl & jq
         run: |
-          if ! command -v curl >/dev/null; then sudo apt-get update && sudo apt-get install -y curl; fi
-          if ! command -v jq >/dev/null; then sudo apt-get update && sudo apt-get install -y jq; fi
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+
+      - name: Smoke check DefectDojo connectivity
+        run: |
+          curl -fsS -o /dev/null --connect-timeout 10 "$DD_URL/api/v2/system_settings/" || {
+            echo "No se puede llegar a $DD_URL"; exit 2; }
 
       - name: Extract SARIF
         run: |
@@ -72,19 +76,36 @@ jobs:
       - name: Upload to DefectDojo (auto-create product/engagement)
         run: |
           set -euo pipefail
-          echo "Usando SARIF: $SARIF_FILE"
-          curl -sS -X POST "$DD_URL/api/v2/reimport-scan/" \
+          PRODUCT="${DD_PRODUCT_NAME:-$GITHUB_REPOSITORY}"   # default si la var no está
+          echo "Producto: $PRODUCT"
+
+          HTTP_CODE=$(curl -fsS -o resp.json -w "%{http_code}" -X POST "$DD_URL/api/v2/reimport-scan/" \
             -H "Authorization: Token $DD_TOKEN" \
             -H "accept: application/json" \
             -H "Content-Type: multipart/form-data" \
             -F "file=@${SARIF_FILE};type=application/sarif+json" \
             -F "scan_type=SARIF" \
-            -F "product_name=${DD_PRODUCT_NAME}" \
+            -F "product_name=${PRODUCT}" \
             -F "product_type_name=${DD_PRODUCT_TYPE_NAME}" \
             -F "engagement_name=CodeQL_${GITHUB_REF_NAME}" \
+            -F "active=true" \
             -F "auto_create_context=true" \
             -F "deduplication_on_engagement=true" \
             -F "close_old_findings=true" \
             -F "branch_tag=${GITHUB_REF_NAME}" \
             -F "build_id=${GITHUB_RUN_NUMBER}" \
-            -F "commit_hash=${GITHUB_SHA}"
+            -F "commit_hash=${GITHUB_SHA}" \
+          || true)
+
+          echo "HTTP_CODE=$HTTP_CODE"
+          cat resp.json | jq . || cat resp.json
+
+          # falla el job si no es 2xx
+          [[ "$HTTP_CODE" =~ ^2 ]] || exit 1
+
+      - name: Verificar que exista el engagement
+        run: |
+          PRODUCT="${DD_PRODUCT_NAME:-$GITHUB_REPOSITORY}"
+          curl -fsS -H "Authorization: Token $DD_TOKEN" \
+            "$DD_URL/api/v2/engagements/?name=CodeQL_${GITHUB_REF_NAME}&product__name=${PRODUCT}" | jq .
+
