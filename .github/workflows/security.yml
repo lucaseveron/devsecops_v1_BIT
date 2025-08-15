@@ -9,7 +9,7 @@ on:
 jobs:
   codeql_analysis:
     name: Analyze with CodeQL
-    runs-on: [self-hosted, defectdojo]
+    runs-on: ubuntu-latest
     permissions:
       security-events: write
       actions: read
@@ -43,10 +43,10 @@ jobs:
   defectdojo_upload:
     name: Create/Update Engagement + Upload to DefectDojo
     needs: codeql_analysis
-    runs-on: [self-hosted, defectdojo]
+    runs-on: ubuntu-latest
     env:
-      DD_URL: "http://3.84.33.199:8080"               # ej: https://tu-defectdojo
-      DD_TOKEN: "359f541e5d5818ed60d6c2264275cb9121b5f708"          # Token API
+      DD_URL: ${{ secrets.DD_URL }}                # ej: https://tu-defectdojo
+      DD_TOKEN: ${{ secrets.DD_TOKEN }}            # Token API
       DD_PRODUCT_NAME: ${{ vars.DD_PRODUCT_NAME }} # ej: "Prueba Boreal"
       DD_PRODUCT_TYPE_NAME: "GitHub Actions"       # opcional, se auto-crea si no existe
     steps:
@@ -88,4 +88,3 @@ jobs:
             -F "branch_tag=${GITHUB_REF_NAME}" \
             -F "build_id=${GITHUB_RUN_NUMBER}" \
             -F "commit_hash=${GITHUB_SHA}"
-
