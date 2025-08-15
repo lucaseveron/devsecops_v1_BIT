@@ -5,13 +5,13 @@ on:
     branches: [ "main", "develop" ]
   pull_request:
     branches: [ "main", "develop" ]
-  # schedule:
-  #   - cron: '0 3 * * 1'  # Lunes 3AM UTC
+#  schedule:
+#    - cron: '0 3 * * 1'  # Ejecutar cada lunes a las 3 AM UTC
 
 jobs:
   codeql_analysis:
     name: Analyze Code with CodeQL
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, defectdojo]
 
     permissions:
       security-events: write
@@ -25,12 +25,12 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: "python"
+          languages: "python"  # Ajusta según tu proyecto
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          output: codeql-results.sarif
+          output: codeql-results.sarif  # Guardar en el directorio raíz con este nombre
 
       - name: Upload CodeQL results as an artifact
         uses: actions/upload-artifact@v4
@@ -41,135 +41,119 @@ jobs:
   codeql_create_engagement:
     name: Create engagement in DefectDojo - CodeQL
     needs: codeql_analysis
-    runs-on: ubuntu-latest
-
+    runs-on: [self-hosted, defectdojo]
     env:
-      # Respeto tus valores:
-      DEFECTDOJO_URL: "http://107.21.152.191:8080"
-      DEFECTDOJO_TOKEN: "2ff51b58d24988ccb47580fd79dab1a95d193ff7"
-
-      # Config engagement
-      DEFECTDOJO_ENGAGEMENT_PERIOD: "28"
-      DEFECTDOJO_ENGAGEMENT_STATUS: "In Progress"
-
-      # Producto: podés setear ID o Nombre (si no existe, se crea)
-      DEFECTDOJO_PRODUCTID: ""                 # si sabés el ID, ponelo acá
-      DEFECTDOJO_PRODUCT_NAME: "devsecops_v1_BIT"
+      DEFECTDOJO_URL: "http://3.84.33.199:8080"
+      DEFECTDOJO_TOKEN: "359f541e5d5818ed60d6c2264275cb9121b5f708"
+      DEFECTDOJO_ENGAGEMENT_PERIOD: 28
+      DEFECTDOJO_ENGAGEMENT_STATUS: "Not Started"
+      DEFECTDOJO_ENGAGEMENT_BUILD_SERVER: "null"
+      DEFECTDOJO_ENGAGEMENT_SOURCE_CODE_MANAGEMENT_SERVER: "null"
+      DEFECTDOJO_ENGAGEMENT_ORCHESTRATION_ENGINE: "null"
+      DEFECTDOJO_ENGAGEMENT_DEDUPLICATION_ON_ENGAGEMENT: "false"
+      DEFECTDOJO_ENGAGEMENT_THREAT_MODEL: "true"
+      DEFECTDOJO_ENGAGEMENT_API_TEST: "true"
+      DEFECTDOJO_ENGAGEMENT_PEN_TEST: "true"
+      DEFECTDOJO_ENGAGEMENT_CHECK_LIST: "true"
+      DEFECTDOJO_PRODUCTID: "1"
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y curl jq coreutils
 
-      - name: Set engagement dates (UTC)
+      - name: Set engagement dates
         run: |
-          echo "TODAY=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
-          echo "ENDDAY=$(date -u -d \"+${DEFECTDOJO_ENGAGEMENT_PERIOD:-28} days\" +%Y-%m-%d)" >> $GITHUB_ENV
+            echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+            echo "ENDDAY=$(date -d '+28 days' +%Y-%m-%d)" >> $GITHUB_ENV
 
-      - name: Sanity check DefectDojo connectivity
+      - name: Create engagement in DefectDojo
         run: |
-          set -e
-          BASE="${DEFECTDOJO_URL%/}/api/v2"
-          curl -fsS "$BASE/engagements/?limit=1" \
-            -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
-            -H "Accept: application/json" -o /dev/null
-          echo "✅ Conexión con Dojo OK"
+          curl --silent --show-error --location --request POST "${DEFECTDOJO_URL}/api/v2/engagements/" \
+          --header "Authorization: Token ${DEFECTDOJO_TOKEN}" \
+          --header "Content-Type: application/json" \
+          --data '{
+          # Variables de entorno (guardalas como secrets en tu CI)
+          DD_URL="http://3.84.33.199:8080"
+          DD_TOKEN="359f541e5d5818ed60d6c2264275cb9121b5f708"
+          PRODUCT_NAME="mi-producto"
+          ENGAGEMENT_NAME="CI-${GITHUB_REF_NAME}"    # o el nombre que prefieras
+          REPORT="path/al/reporte.json"              # salida de tu scanner
+          SCAN_TYPE="Semgrep JSON Report"            # ej: Semgrep; ver otros tipos abajo
+          
+          curl -sS -X POST "$DD_URL/api/v2/reimport-scan/" \
+            -H "Authorization: Token $DD_TOKEN" \
+            -H "accept: application/json" \
+            -H "Content-Type: multipart/form-data" \
+            -F "file=@${REPORT}" \
+            -F "scan_type=${SCAN_TYPE}" \
+            -F "product_name=${PRODUCT_NAME}" \
+            -F "engagement_name=${ENGAGEMENT_NAME}" \
+            -F "auto_create_context=true" \
+            -F "deduplication_on_engagement=true" \
+            -F "close_old_findings=true"
+                    }' -o id.json
 
-      - name: Resolve/ensure DefectDojo Product
-        run: |
-          set -euo pipefail
-          BASE="${DEFECTDOJO_URL%/}/api/v2"
-          AUTH="Authorization: Token ${DEFECTDOJO_TOKEN}"
-
-          # 1) Si me diste un ID explícito, lo valido
-          if [ -n "${DEFECTDOJO_PRODUCTID:-}" ]; then
-            code=$(curl -s -o /dev/null -w "%{http_code}" -H "$AUTH" "$BASE/products/${DEFECTDOJO_PRODUCTID}/")
-            if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
-              echo "PRODUCT_ID=${DEFECTDOJO_PRODUCTID}" >> $GITHUB_ENV
-            fi
-          fi
-
-          # 2) Si no hay PRODUCT_ID válido, busco por nombre (case-insensitive)
-          if [ -z "${PRODUCT_ID:-}" ]; then
-            NAME="${DEFECTDOJO_PRODUCT_NAME:-devsecops_v1_BIT}"
-            id=$(curl -s -H "$AUTH" "$BASE/products/?name__iexact=${NAME}" | jq -r '.results[0].id // empty')
-            if [ -n "$id" ]; then
-              echo "PRODUCT_ID=$id" >> $GITHUB_ENV
-            else
-              # 3) Si no existe, creo ProductType (si hace falta) y Product
-              pt=$(curl -s -H "$AUTH" "$BASE/product_types/?limit=1" | jq -r '.results[0].id // empty')
-              if [ -z "$pt" ]; then
-                pt=$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
-                      "$BASE/product_types/" --data '{"name":"Default"}' | jq -r '.id')
-              fi
-              new=$(jq -n --arg name "$NAME" --argjson pt "$pt" '{name:$name, prod_type:$pt}')
-              id=$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
-                    "$BASE/products/" --data "$new" | jq -r '.id')
-              if [ -z "$id" ] || [ "$id" = "null" ]; then
-                echo "❌ No pude crear el Product en DefectDojo"; exit 1
-              fi
-              echo "PRODUCT_ID=$id" >> $GITHUB_ENV
-              echo "✅ Product creado: $NAME (ID=$id)"
-            fi
-          fi
-
-      - name: Create engagement in DefectDojo (minimal payload)
-        id: create_engagement
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          DESC="${{ github.event.head_commit.message }}"
-          if [ -z "$DESC" ]; then DESC="${{ github.event.pull_request.title }}"; fi
-          if [ -z "$DESC" ]; then DESC="CodeQL run"; fi
-
-          payload=$(jq -n \
-            --arg name "CodeQL_#${{ github.run_id }}" \
-            --arg description "$DESC" \
-            --arg status "${DEFECTDOJO_ENGAGEMENT_STATUS}" \
-            --arg start "${TODAY}" \
-            --arg end   "${ENDDAY}" \
-            --arg type  "CI/CD" \
-            --argjson product ${PRODUCT_ID} \
-            '{ name: $name, description: $description, status: $status,
-               engagement_type: $type, target_start: $start, target_end: $end,
-               product: $product }')
-
-          echo "$payload" > payload.json
-
-          http_code=$(curl -sS -o id.json -w "%{http_code}" -X POST \
-            "${DEFECTDOJO_URL%/}/api/v2/engagements/" \
-            -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data @payload.json)
-
-          echo "HTTP ${http_code}"
-          cat id.json || true
-
-          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
-            echo "❌ Falló la creación del engagement (HTTP ${http_code})"
-            exit 1
-          fi
-
+          # Extraer el ID y guardarlo en un archivo .env
           ENGAGEMENT_ID=$(jq -r '.id' id.json)
-          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}" | tee -a defectdojo1.env
-          echo "engagement_id=${ENGAGEMENT_ID}" >> "$GITHUB_OUTPUT"
-          echo "✅ Engagement creado: ID=${ENGAGEMENT_ID}"
+          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}" >> defectdojo1.env
+          echo "DEFECTDOJO_ENGAGEMENTID=${ENGAGEMENT_ID}"
 
-      - name: Upload debug artifacts (payload & id)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: defectdojo-debug
-          path: |
-            payload.json
-            id.json
-
-      - name: Upload defectdojo1.env
+      - name: Upload defectdojo.env file
         uses: actions/upload-artifact@v4
         with:
           name: defectdojo1-env
           path: defectdojo1.env
+
+  codeql_import_results:
+    name: Publish CodeQL Scan in DefectDojo
+    runs-on: [self-hosted, defectdojo]
+    needs: codeql_create_engagement
+    env:
+      DEFECTDOJO_URL: "http://3.84.33.199:8080"
+      DEFECTDOJO_TOKEN: "359f541e5d5818ed60d6c2264275cb9121b5f708"
+      DEFECTDOJO_SCAN_MINIMUM_SEVERITY: "Info"
+      DEFECTDOJO_SCAN_ACTIVE: "true"
+      DEFECTDOJO_SCAN_VERIFIED: "false"
+      DEFECTDOJO_SCAN_CLOSE_OLD_FINDINGS: "true"
+      DEFECTDOJO_SCAN_PUSH_TO_JIRA: "false"
+      DEFECTDOJO_SCAN_ENVIRONMENT: "Default"
+      DEFECTDOJO_SCAN_TEST_TYPE: "SARIF"
+      DEFECTDOJO_PRODUCT_TYPE: "Github Actions"
+      DEFECTDOJO_PRODUCT_NAME: "Prueba Boreal"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download CodeQL results artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: codeql-results  # El nombre del artefacto que subiste
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y curl
+
+      - name: Set scan date
+        run: |
+            echo "TODAY=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+
+      - name: Upload CodeQL Scan to DefectDojo
+        run: |
+          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
+          -H "accept: application/json" \
+          -H "Content-Type: multipart/form-data" \
+          -H "Authorization: Token ${DEFECTDOJO_TOKEN}" \
+          -F "scan_date=${TODAY}" \
+          -F "minimum_severity=${DEFECTDOJO_SCAN_MINIMUM_SEVERITY}" \
+          -F "active=${DEFECTDOJO_SCAN_ACTIVE}" \
+          -F "verified=${DEFECTDOJO_SCAN_VERIFIED}" \
+          -F "scan_type=${DEFECTDOJO_SCAN_TEST_TYPE}" \
+          -F "product_name=${DEFECTDOJO_PRODUCT_NAME}" \
+          -F "file=@python.sarif;type=application/sarif+json" \
+          -F "engagement_name=CodeQL_#${{ github.run_id }}" \
+          -F "close_old_findings=${DEFECTDOJO_SCAN_CLOSE_OLD_FINDINGS}" \
+          -F "push_to_jira=${DEFECTDOJO_SCAN_PUSH_TO_JIRA}"
