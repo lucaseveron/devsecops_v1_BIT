@@ -40,14 +40,14 @@ jobs:
           path: sarif.tgz
 
   defectdojo_upload:
-    name: Create/Update Engagement + Upload to DefectDojo
+    name: Ensure Product/Engagement + Upload to DefectDojo
     needs: codeql_analysis
     runs-on: ubuntu-latest
     env:
-      DD_URL: ${{ secrets.DD_URL }}                 # ej: http://3.84.33.199:8080
+      DD_URL: ${{ secrets.DD_URL }}
       DD_TOKEN: ${{ secrets.DD_TOKEN }}
-      DD_PRODUCT_NAME: ${{ vars.DD_PRODUCT_NAME }}  # si no existe, usamos repo como default
-      DD_PRODUCT_TYPE_NAME: "GitHub Actions"
+      DD_PRODUCT_NAME: ${{ vars.DD_PRODUCT_NAME }}
+      DD_PRODUCT_TYPE_NAME: GitHub Actions
     steps:
       - uses: actions/checkout@v4
 
@@ -62,50 +62,135 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl jq
 
-      - name: Smoke check DefectDojo connectivity
-        run: |
-          curl -fsS -o /dev/null --connect-timeout 10 "$DD_URL/api/v2/system_settings/" || {
-            echo "No se puede llegar a $DD_URL"; exit 2; }
-
       - name: Extract SARIF
         run: |
           tar -xzf ./sarif/sarif.tgz -C ./sarif
           SARIF_FILE=$(ls ./sarif/*.sarif | head -n1)
           echo "SARIF_FILE=$SARIF_FILE" >> $GITHUB_ENV
 
-      - name: Upload to DefectDojo (auto-create product/engagement)
+      - name: Smoke check (with auth)
         run: |
           set -euo pipefail
-          PRODUCT="${DD_PRODUCT_NAME:-$GITHUB_REPOSITORY}"   # default si la var no está
-          echo "Producto: $PRODUCT"
-
-          HTTP_CODE=$(curl -fsS -o resp.json -w "%{http_code}" -X POST "$DD_URL/api/v2/reimport-scan/" \
+          HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
             -H "Authorization: Token $DD_TOKEN" \
-            -H "accept: application/json" \
-            -H "Content-Type: multipart/form-data" \
-            -F "file=@${SARIF_FILE};type=application/sarif+json" \
-            -F "scan_type=SARIF" \
-            -F "product_name=${PRODUCT}" \
-            -F "product_type_name=${DD_PRODUCT_TYPE_NAME}" \
-            -F "engagement_name=CodeQL_${GITHUB_REF_NAME}" \
-            -F "active=true" \
-            -F "auto_create_context=true" \
-            -F "deduplication_on_engagement=true" \
-            -F "close_old_findings=true" \
-            -F "branch_tag=${GITHUB_REF_NAME}" \
-            -F "build_id=${GITHUB_RUN_NUMBER}" \
-            -F "commit_hash=${GITHUB_SHA}" \
-          || true)
+            "$DD_URL/api/v2/engagements/?limit=1" || true)
+          echo "HTTP_CODE=$HTTP_CODE"
+          [[ "$HTTP_CODE" =~ ^2 ]] || { echo "DefectDojo inaccesible o token inválido"; exit 2; }
+
+      - name: Ensure ProductType + Product + Engagement, then upload
+        run: |
+          set -euo pipefail
+
+          PRODUCT="${DD_PRODUCT_NAME:-$GITHUB_REPOSITORY}"
+          PTYPE="${DD_PRODUCT_TYPE_NAME:-GitHub Actions}"
+          ENG_NAME="CodeQL_${GITHUB_REF_NAME}"
+          TODAY=$(date +%F)
+
+          echo "Producto objetivo: '$PRODUCT' | Tipo: '$PTYPE' | Engagement: '$ENG_NAME'"
+
+          # -------- Buscar/crear Product Type --------
+          PTYPE_ID=$(curl -sS -G -H "Authorization: Token $DD_TOKEN" \
+            --data-urlencode "name=$PTYPE" \
+            "$DD_URL/api/v2/product_types/" | jq -r '.results[0].id // empty')
+
+          if [ -z "$PTYPE_ID" ]; then
+            echo "ProductType no existe, intentando crearlo…"
+            HTTP_CODE=$(curl -sS -o pt.json -w "%{http_code}" -X POST \
+              -H "Authorization: Token $DD_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"$PTYPE\"}" \
+              "$DD_URL/api/v2/product_types/" || true)
+            if [[ "$HTTP_CODE" =~ ^2 ]]; then
+              PTYPE_ID=$(jq -r '.id' pt.json)
+            else
+              echo "No pude crear ProductType ($HTTP_CODE). Usaré modo 'names' (auto_create_context)."
+              UPLOAD_MODE="names"
+            fi
+          fi
+
+          # -------- Buscar/crear Product --------
+          if [ "${UPLOAD_MODE:-}" != "names" ]; then
+            PROD_ID=$(curl -sS -G -H "Authorization: Token $DD_TOKEN" \
+              --data-urlencode "name=$PRODUCT" \
+              "$DD_URL/api/v2/products/" | jq -r '.results[0].id // empty')
+
+            if [ -z "$PROD_ID" ]; then
+              echo "Product no existe, intentando crearlo…"
+              HTTP_CODE=$(curl -sS -o prod.json -w "%{http_code}" -X POST \
+                -H "Authorization: Token $DD_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$PRODUCT\",\"prod_type\":$PTYPE_ID}" \
+                "$DD_URL/api/v2/products/" || true)
+              if [[ "$HTTP_CODE" =~ ^2 ]]; then
+                PROD_ID=$(jq -r '.id' prod.json)
+              else
+                echo "No pude crear Product ($HTTP_CODE). Usaré modo 'names' (auto_create_context)."
+                UPLOAD_MODE="names"
+              fi
+            fi
+          fi
+
+          # -------- Buscar/crear Engagement --------
+          if [ "${UPLOAD_MODE:-}" != "names" ]; then
+            ENG_ID=$(curl -sS -G -H "Authorization: Token $DD_TOKEN" \
+              --data-urlencode "name=$ENG_NAME" \
+              --data-urlencode "product=$PROD_ID" \
+              "$DD_URL/api/v2/engagements/" | jq -r '.results[0].id // empty')
+
+            if [ -z "$ENG_ID" ]; then
+              echo "Engagement no existe, creándolo…"
+              HTTP_CODE=$(curl -sS -o eng.json -w "%{http_code}" -X POST \
+                -H "Authorization: Token $DD_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$ENG_NAME\",\"product\":$PROD_ID,\"status\":\"In Progress\",\"target_start\":\"$TODAY\",\"target_end\":\"$TODAY\",\"active\":true}" \
+                "$DD_URL/api/v2/engagements/" || true)
+              if [[ "$HTTP_CODE" =~ ^2 ]]; then
+                ENG_ID=$(jq -r '.id' eng.json)
+              else
+                echo "No pude crear Engagement ($HTTP_CODE). Cambio a modo 'names'."
+                UPLOAD_MODE="names"
+              fi
+            fi
+          fi
+
+          echo "UPLOAD_MODE=${UPLOAD_MODE:-engagement}"
+          echo "PTYPE_ID=${PTYPE_ID:-}" ; echo "PROD_ID=${PROD_ID:-}" ; echo "ENG_ID=${ENG_ID:-}"
+
+          # -------- Subir scan --------
+          if [ "${UPLOAD_MODE:-}" = "names" ]; then
+            echo "Subiendo con auto_create_context=true (product/engagement por nombre)…"
+            HTTP_CODE=$(curl -sS -o resp.json -w "%{http_code}" -X POST "$DD_URL/api/v2/reimport-scan/" \
+              -H "Authorization: Token $DD_TOKEN" \
+              -H "accept: application/json" \
+              -H "Content-Type: multipart/form-data" \
+              -F "file=@${SARIF_FILE};type=application/sarif+json" \
+              -F "scan_type=SARIF" \
+              -F "product_name=${PRODUCT}" \
+              -F "product_type_name=${PTYPE}" \
+              -F "engagement_name=${ENG_NAME}" \
+              -F "active=true" \
+              -F "auto_create_context=true" \
+              -F "deduplication_on_engagement=true" \
+              -F "close_old_findings=true" \
+              -F "branch_tag=${GITHUB_REF_NAME}" \
+              -F "build_id=${GITHUB_RUN_NUMBER}" \
+              -F "commit_hash=${GITHUB_SHA}" || true)
+          else
+            echo "Subiendo contra Engagement ID=${ENG_ID}…"
+            HTTP_CODE=$(curl -sS -o resp.json -w "%{http_code}" -X POST "$DD_URL/api/v2/reimport-scan/" \
+              -H "Authorization: Token $DD_TOKEN" \
+              -H "accept: application/json" \
+              -H "Content-Type: multipart/form-data" \
+              -F "file=@${SARIF_FILE};type=application/sarif+json" \
+              -F "scan_type=SARIF" \
+              -F "engagement=${ENG_ID}" \
+              -F "deduplication_on_engagement=true" \
+              -F "close_old_findings=true" \
+              -F "branch_tag=${GITHUB_REF_NAME}" \
+              -F "build_id=${GITHUB_RUN_NUMBER}" \
+              -F "commit_hash=${GITHUB_SHA}" || true)
+          fi
 
           echo "HTTP_CODE=$HTTP_CODE"
-          cat resp.json | jq . || cat resp.json
-
-          # falla el job si no es 2xx
+          jq . resp.json || cat resp.json
           [[ "$HTTP_CODE" =~ ^2 ]] || exit 1
-
-      - name: Verificar que exista el engagement
-        run: |
-          PRODUCT="${DD_PRODUCT_NAME:-$GITHUB_REPOSITORY}"
-          curl -fsS -H "Authorization: Token $DD_TOKEN" \
-            "$DD_URL/api/v2/engagements/?name=CodeQL_${GITHUB_REF_NAME}&product__name=${PRODUCT}" | jq .
-
